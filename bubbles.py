@@ -11,7 +11,7 @@
 """
 
 import tkinter as tk
-from random import randint
+from random import randint, random, uniform, gauss
 
 MAP_WIDTH = 1000
 MAP_HEIGHT = 1000
@@ -29,34 +29,32 @@ class Box():
 
 class Bubble():
     
-    MOVES = [
-            (1, 0), # right
-            (0, 1), # down
-            (-1, 0), # left
-            (0, -1), # up
-    ]
-    
     def __init__(self, x, y, color="blue"):
         self.x = x
         self.y = y
         self.radius = 5
         self.color = color
 
+        self.disabled = False
+
         self.step_size = 10
     
 
     def initialize_move_sequence(self, move_sequence=None, length=10):
         if move_sequence is None:
-            self.move_sequence = [randint(0, 3) for _ in range(length)]
+            self.move_sequence = [(uniform(-1, 1), uniform(-1, 1)) for _ in range(length)]
         else:
             self.move_sequence = move_sequence
     
-    def move(self):
-        if len(self.move_sequence) > 0:
-            dx, dy = self.MOVES[self.move_sequence[0]]
+    def move(self, sequence_index):
+        if self.disabled:
+            return
+        if len(self.move_sequence) > sequence_index:
+            dx, dy = self.move_sequence[sequence_index]
             self.x += dx * self.step_size
             self.y += dy * self.step_size
-            self.move_sequence = self.move_sequence[1:]
+        else:
+            self.disabled = True
 
     def draw(self, canvas):
         canvas.create_oval(self.x - self.radius, self.y - self.radius, self.x + self.radius, self.y + self.radius, fill=self.color)
@@ -67,60 +65,183 @@ class Map():
         self.goal = goal
         self.checkpoint_radius = 15
         self.obstacles = obstacles
+
+        self.window = BubbleWindow()
+
         
-        self.bubbles = []
+    def simulate(self, bubbles):
+        sequence_index = 0
+        for bubble in bubbles:
+            bubble.disabled = False
+            bubble.x = self.start["x"]
+            bubble.y = self.start["y"]
+            bubble.color = "blue"
+
+        def step():
+            nonlocal sequence_index
+            if all([bubble.disabled for bubble in bubbles]):
+                self.window.stop()
+                return bubbles
+            map.move_bubbles(bubbles, sequence_index)
+            sequence_index += 1
+            map.check_collisions(bubbles)
+            
+            map.draw(self.window.canvas, bubbles)
+
+        self.window.step_function = step
+        self.window.start()
         
-        self.eliminated_bubbles = []
-        self.won_bubbles = []
 
-    def add_bubbles(self, n=1):
-        for _ in range(n):
-            bubble = Bubble(self.start["x"], self.start["y"])
-
-            bubble.initialize_move_sequence()
-            self.bubbles.append(bubble)
-
-    def move_bubbles(self):
-        for bubble in self.bubbles:
-            bubble.move()
+    def move_bubbles(self, bubbles, sequence_index):
+        for bubble in bubbles:
+            bubble.move(sequence_index)
     
 
-    def check_collisions(self):
-        collisions = []
-        winners = []
-        for bubble in self.bubbles:
-            if bubble.x - bubble.radius < 0 or bubble.x + bubble.radius > MAP_WIDTH or bubble.y - bubble.radius < 0 or bubble.y + bubble.radius > MAP_HEIGHT:
-                collisions.append(bubble)
-            if ((bubble.x - goal["x"])**2 + (bubble.y - goal["y"])**2)**0.5 < bubble.radius + self.checkpoint_radius:
-                winners.append(bubble)
-            for obstacle in self.obstacles:
-                if bubble.x + bubble.radius > obstacle.x and bubble.x - bubble.radius < obstacle.x + obstacle.width and bubble.y + bubble.radius > obstacle.y and bubble.y - bubble.radius < obstacle.y + obstacle.height:
-                    collisions.append(bubble)
-        for bubble in collisions:
-            bubble.color = "red"
-            self.bubbles.remove(bubble)
-            self.eliminated_bubbles.append(bubble)
-        for bubble in winners:
-            bubble.color = "green"
-            self.bubbles.remove(bubble)
-            self.won_bubbles.append(bubble)
+    def check_collisions(self, bubbles):
+        for bubble in bubbles:
+            if self.bubble_border_collision(bubble) or self.bubble_obstacles_collision(bubble):
+                bubble.color = "red"
+                bubble.disabled = True
+            if self.bubble_goal_collision(bubble):
+                bubble.color = "green"
+                bubble.disabled = True
+    
+    def bubble_border_collision(self, bubble):
+        if bubble.x - bubble.radius < 0 or bubble.x + bubble.radius > MAP_WIDTH or bubble.y - bubble.radius < 0 or bubble.y + bubble.radius > MAP_HEIGHT:
+            return True
+        return False
 
-    def draw(self, canvas):
+    def bubble_obstacles_collision(self, bubble):
+        for obstacle in self.obstacles:
+            if bubble.x + bubble.radius > obstacle.x and bubble.x - bubble.radius < obstacle.x + obstacle.width and bubble.y + bubble.radius > obstacle.y and bubble.y - bubble.radius < obstacle.y + obstacle.height:
+                return True
+        return False
+    
+    def bubble_goal_collision(self, bubble):
+        if ((bubble.x - goal["x"])**2 + (bubble.y - goal["y"])**2)**0.5 < bubble.radius + self.checkpoint_radius:
+            return True
+        return False
+
+    def draw(self, canvas, bubbles):
         canvas.create_oval(self.start["x"] - self.checkpoint_radius, self.start["y"] - self.checkpoint_radius, self.start["x"] + self.checkpoint_radius, self.start["y"] + self.checkpoint_radius, fill="green")
         canvas.create_oval(self.goal["x"] - self.checkpoint_radius, self.goal["y"] - self.checkpoint_radius, self.goal["x"] + self.checkpoint_radius, self.goal["y"] + self.checkpoint_radius, fill="red")
         for obstacle in self.obstacles:
             obstacle.draw(canvas)
-        for bubble in self.bubbles + self.eliminated_bubbles + self.won_bubbles:
+        for bubble in bubbles:
             bubble.draw(canvas)
 
+class BubbleWindow():
+    def __init__(self, step_function=None, framerate=10):
+        self.step_function = step_function
+        self.framerate = framerate
+    
+        self.setup()
+    
+    def setup(self):
+        self.root = tk.Tk()
+        self.root.title("Bubbles")
+        self.canvas = tk.Canvas(self.root, width=MAP_WIDTH, height=MAP_HEIGHT, bg="white")
+        self.canvas.grid(row=0, column=0)
 
-# create the window
-root = tk.Tk()
-root.title("Bubbles")
+        self.root.after(int(1000 / self.framerate), self.event_loop)
 
-# create a canvas to draw on
-canvas = tk.Canvas(root, width=MAP_WIDTH, height=MAP_HEIGHT, bg="white")
-canvas.grid(row=0, column=0)
+    def event_loop(self):
+        self.canvas.delete("all")
+        if self.step_function is not None:
+            self.step_function()
+        self.root.after(int(1000 / self.framerate), self.event_loop)
+
+    def start(self):
+        self.root.mainloop()
+
+    def stop(self):
+        self.root.quit()
+        
+
+class EvolutionaryAlgorithm():
+    def __init__(self, map, population_size=100, mutation_rate=0.01, mutation_strength=0.1):
+        self.map = map
+        self.population_size = population_size
+        self.mutation_rate = mutation_rate
+        self.mutation_strength = mutation_strength
+
+        self.population = []
+        self.solution_length = 100
+        self.initialize_population()
+
+    def initialize_population(self):
+        for _ in range(self.population_size):
+            bubble = Bubble(self.map.start["x"], self.map.start["y"])
+            bubble.initialize_move_sequence(length=self.solution_length)
+            self.population.append(bubble)        
+
+    def evaluate_population(self):
+        for bubble in self.population:
+            bubble.fitness = self.evaluate_performance(bubble)
+    
+    def evaluate_performance(self, bubble):
+        distance = (bubble.x - self.map.goal["x"])**2 + (bubble.y - self.map.goal["y"])**2
+        return -distance
+
+    def natural_selection(self):
+        sorted_population = sorted(self.population, key=lambda bubble: bubble.fitness, reverse=True)
+        
+        survivors = sorted_population[:int(self.population_size / 2)]
+        lucky_losers = sorted_population[int(self.population_size / 2):]
+        for bubble in lucky_losers:
+            if random() < 0.1:
+                survivors.append(bubble)
+
+        return survivors
+
+    def breed(self, parents, n):
+        offspring = []
+        for _ in range(n):
+            mother = parents[randint(0, len(parents) - 1)]
+            father = parents[randint(0, len(parents) - 1)]
+
+            child = self.crossover(mother, father)
+            self.mutate(child)
+
+            offspring.append(child)
+        return offspring
+        
+    def crossover(self, mother, father):
+        ms1 = mother.move_sequence
+        ms2 = father.move_sequence
+
+        selection = [0 if random() < 0.5 else 1 for _ in range(self.solution_length)]
+        ms = []
+        for s in zip(ms1, ms2, selection):
+            ms.append(s[s[2]])
+
+        child = Bubble(self.map.start["x"], self.map.start["y"])        
+        child.initialize_move_sequence(move_sequence=ms)
+        return child
+
+    def mutate(self, bubbles):
+        # handle lists and single items
+        if type(bubbles) != list:
+            bubbles = [bubbles]
+        for bubble in bubbles:    
+            for i in range(self.solution_length):
+                if random() < self.mutation_rate:
+                    bubble.move_sequence[i] = (
+                        bubble.move_sequence[i][0] + gauss(0, self.mutation_strength),
+                        bubble.move_sequence[i][1] + gauss(0, self.mutation_strength)
+                    )
+
+
+    def run(self):
+        self.map.simulate(self.population)
+        self.evaluate_population()
+        survivors = self.natural_selection()
+        print(len(survivors))
+        self.mutate(survivors)
+        offspring = self.breed(survivors, self.population_size - len(survivors))
+
+        self.population = survivors + offspring
+        
 
 start = {
     "x": 50,
@@ -133,24 +254,13 @@ goal = {
 }
 
 obstacles = [
-    Box(200, 200, 30, 600),
+    Box(200, 400, 30, 600),
     Box(350, 20, 30, 400),
     Box(450, 700, 30, 200),
 ]
 
 map = Map(start, goal, obstacles)
-map.add_bubbles(n=10)
 
-framerate = 10
-
-# start the event loop
-def event_loop():
-    map.move_bubbles()
-    map.check_collisions()
-    canvas.delete("all")
-    map.draw(canvas)
-    
-    root.after(int(1000 / framerate), event_loop)
-
-root.after(int(1000 / framerate), event_loop)
-root.mainloop()
+evolution = EvolutionaryAlgorithm(map, population_size=100, mutation_rate=0.05, mutation_strength=0.1)
+for _ in range(100):
+    evolution.run()
