@@ -29,23 +29,24 @@ class Box():
 
 class Bubble():
     
-    def __init__(self, x, y, color="blue"):
-        self.x = x
-        self.y = y
+    def __init__(self, move_sequence=None, move_sequence_length=10):
+
         self.radius = 5
-        self.color = color
 
         self.disabled = False
 
         self.step_size = 10
+
+        self.initialize_move_sequence(move_sequence, move_sequence_length)
+
     
 
-    def initialize_move_sequence(self, move_sequence=None, length=10):
+    def initialize_move_sequence(self, move_sequence, move_sequence_length):
         if move_sequence is None:
-            self.move_sequence = [(uniform(-1, 1), uniform(-1, 1)) for _ in range(length)]
+            self.move_sequence = [(uniform(-1, 1), uniform(-1, 1)) for _ in range(move_sequence_length)]
         else:
             self.move_sequence = move_sequence
-    
+
     def move(self, sequence_index):
         if self.disabled:
             return
@@ -63,6 +64,7 @@ class Map():
     def __init__(self, start, goal, obstacles):
         self.start = start
         self.goal = goal
+        self.distance_to_goal = ((goal["x"] - start["x"])**2 + (goal["y"] - start["y"])**2)**0.5
         self.checkpoint_radius = 15
         self.obstacles = obstacles
 
@@ -131,9 +133,8 @@ class Map():
             bubble.draw(canvas)
 
 class BubbleWindow():
-    def __init__(self, step_function=None, framerate=10):
+    def __init__(self, step_function=None):
         self.step_function = step_function
-        self.framerate = framerate
     
         self.setup()
     
@@ -143,13 +144,13 @@ class BubbleWindow():
         self.canvas = tk.Canvas(self.root, width=MAP_WIDTH, height=MAP_HEIGHT, bg="white")
         self.canvas.grid(row=0, column=0)
 
-        self.root.after(int(1000 / self.framerate), self.event_loop)
+        self.root.after(1, self.event_loop)
 
     def event_loop(self):
         self.canvas.delete("all")
         if self.step_function is not None:
             self.step_function()
-        self.root.after(int(1000 / self.framerate), self.event_loop)
+        self.root.after(1, self.event_loop)
 
     def start(self):
         self.root.mainloop()
@@ -166,28 +167,30 @@ class EvolutionaryAlgorithm():
         self.mutation_strength = mutation_strength
 
         self.population = []
-        self.solution_length = 100
+        self.solution_length = 200
         self.initialize_population()
 
     def initialize_population(self):
         for _ in range(self.population_size):
-            bubble = Bubble(self.map.start["x"], self.map.start["y"])
-            bubble.initialize_move_sequence(length=self.solution_length)
+            bubble = Bubble(move_sequence_length=self.solution_length)
             self.population.append(bubble)        
 
     def evaluate_population(self):
-        for bubble in self.population:
-            bubble.fitness = self.evaluate_performance(bubble)
-    
-    def evaluate_performance(self, bubble):
-        distance = (bubble.x - self.map.goal["x"])**2 + (bubble.y - self.map.goal["y"])**2
-        return -distance
+        distances = [self.evaluate_distance(bubble) for bubble in self.population]
+        # map distances to fitness
+        
+        for i in range(len(distances)):
+            self.population[i].fitness = 0 + ((1 - 0) / (0 - self.map.distance_to_goal)) * (distances[i] - self.map.distance_to_goal)
+
+
+    def evaluate_distance(self, bubble):
+        distance = ((bubble.x - self.map.goal["x"])**2 + (bubble.y - self.map.goal["y"])**2)**0.5
+        return distance
 
     def natural_selection(self):
-        sorted_population = sorted(self.population, key=lambda bubble: bubble.fitness, reverse=True)
         
-        survivors = sorted_population[:int(self.population_size / 2)]
-        lucky_losers = sorted_population[int(self.population_size / 2):]
+        survivors = self.population[:int(self.population_size / 2)]
+        lucky_losers = self.population[int(self.population_size / 2):]
         for bubble in lucky_losers:
             if random() < 0.1:
                 survivors.append(bubble)
@@ -207,17 +210,8 @@ class EvolutionaryAlgorithm():
         return offspring
         
     def crossover(self, mother, father):
-        ms1 = mother.move_sequence
-        ms2 = father.move_sequence
-
-        selection = [0 if random() < 0.5 else 1 for _ in range(self.solution_length)]
-        ms = []
-        for s in zip(ms1, ms2, selection):
-            ms.append(s[s[2]])
-
-        child = Bubble(self.map.start["x"], self.map.start["y"])        
-        child.initialize_move_sequence(move_sequence=ms)
-        return child
+        cutoff = randint(0, self.solution_length)
+        return Bubble(move_sequence=mother.move_sequence[:cutoff] + father.move_sequence[cutoff:])
 
     def mutate(self, bubbles):
         # handle lists and single items
@@ -235,12 +229,17 @@ class EvolutionaryAlgorithm():
     def run(self):
         self.map.simulate(self.population)
         self.evaluate_population()
+        self.population = sorted(self.population, key=lambda bubble: bubble.fitness, reverse=True)
+        best = self.population[0].fitness
+        avg = sum([bubble.fitness for bubble in self.population]) / len(self.population)
+
         survivors = self.natural_selection()
-        print(len(survivors))
         self.mutate(survivors)
         offspring = self.breed(survivors, self.population_size - len(survivors))
 
         self.population = survivors + offspring
+
+        return best, avg
         
 
 start = {
@@ -261,6 +260,7 @@ obstacles = [
 
 map = Map(start, goal, obstacles)
 
-evolution = EvolutionaryAlgorithm(map, population_size=100, mutation_rate=0.05, mutation_strength=0.1)
-for _ in range(100):
-    evolution.run()
+evolution = EvolutionaryAlgorithm(map, population_size=1000, mutation_rate=0.05, mutation_strength=0.3)
+for i in range(100):
+    best, avg = evolution.run()
+    print("Generation", i, "best:", best, "avg:", avg)
