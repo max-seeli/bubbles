@@ -13,6 +13,7 @@ from random import random, randint, gauss, seed
 from math import inf
 from numpy import polyfit, poly1d
 from bubbles import *
+from multiprocessing import Pool
 
 class EvolutionaryAlgorithm():
     def __init__(self, map, generations,population_size, mutation_rate, mutation_strength):
@@ -141,18 +142,16 @@ def start_evolution(generations=100, population_size=1000, mutation_rate=0.05, m
 
     return evolution.run(status_callback=update_status if visualize else None)
     
+def seeded_evolution(evolution_seed, config):
+    seed(evolution_seed)
+    return (evolution_seed, start_evolution(**config, visualize=False))
 
 def seed_search(start, end, config):
-    
-    best_seed, success_generation = 0, inf
 
-    for i in range(start, end):
-        seed(i)
-        print("Seed: {}".format(i))
-        current_success_generation = start_evolution(**config, visualize=False)
-        if current_success_generation < success_generation:
-            best_seed, success_generation = i, current_success_generation
-    
+    with Pool() as pool:
+        results = pool.starmap(seeded_evolution, [(i, config) for i in range(start, end)])
+
+    best_seed, success_generation = min(results, key=lambda x: x[1])
     print("Best seed: {} with success generation: {}".format(best_seed, success_generation))
 
 if __name__ == "__main__":
@@ -165,7 +164,7 @@ if __name__ == "__main__":
         }
     
     
-    seed(13)
+    seed(88)
     start_evolution(**config, visualize=True)
 
     # seed_search(0, 100, config)
