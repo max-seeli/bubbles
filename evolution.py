@@ -10,11 +10,12 @@
 """
 
 from random import random, randint, gauss, seed
+from math import inf
 from numpy import polyfit, poly1d
 from bubbles import *
 
 class EvolutionaryAlgorithm():
-    def __init__(self, map, population_size=1000, mutation_rate=0.05, mutation_strength=0.3):
+    def __init__(self, map, population_size, mutation_rate, mutation_strength):
         self.map = map
         
         self.population_size = population_size
@@ -86,8 +87,10 @@ class EvolutionaryAlgorithm():
         self.map.simulate(self.population)
         self.evaluate_population()
         self.population = sorted(self.population, key=lambda bubble: bubble.fitness, reverse=True)
+        
         best = self.population[0].fitness
         avg = sum([bubble.fitness for bubble in self.population]) / len(self.population)
+        success = any([bubble.won for bubble in self.population])
 
         survivors = self.natural_selection()
         offspring = self.breed(survivors, self.population_size - len(survivors))
@@ -95,14 +98,12 @@ class EvolutionaryAlgorithm():
         
         self.population = survivors + offspring
 
-        return best, avg
+        return best, avg, success
 
 
-if __name__ == "__main__":
+def start_evolution(generations=100, population_size=1000, mutation_rate=0.05, mutation_strength=0.3, visualize = True):
 
-    seed(0)
-
-    window = BubbleWindow(1000, 1000)
+    width, height = 1000, 1000
 
     start = Checkpoint(50, 500)
     goal = Checkpoint(950, 500)
@@ -112,18 +113,47 @@ if __name__ == "__main__":
         Box(450, 700, 30, 200),
     ]
 
-    map = Map(start, goal, obstacles, window)
+    map = Map(width, height, start, goal, obstacles, visualize=visualize)
 
-    evolution = EvolutionaryAlgorithm(map)
+    evolution = EvolutionaryAlgorithm(map, population_size, mutation_rate, mutation_strength)
     
-    status_text = tk.StringVar(value="Starting...")
-    label = tk.Label(window, textvariable=status_text, fg="black", font=("Helvetica", 16))
-    label.grid(row=1, column=0)
+    
+    for i in range(1, generations + 1): 
 
-    for i in range(100): # 100 generations
+        best, avg, success = evolution.run()
         
-        best, avg = evolution.run()
+        status = "Generation: {} Best: {:.2f}% Avg: {:.2f}%".format(i, best * 100, avg * 100)
         
-        status = "Generation: {} Best: {:.2f}% Avg: {:.2f}%".format(i + 1, best * 100, avg * 100)
-        status_text.set(status)
+        if visualize: map.window.status_text = status
         print(status)
+        
+        if success:
+            break
+
+    return i    
+
+
+def seed_search(start, end, config):
+    
+    best_seed, success_generation = 0, inf
+
+    for i in range(start, end):
+        seed(i)
+        print("Seed: {}".format(i))
+        current_success_generation = start_evolution(**config)
+        if current_success_generation < success_generation:
+            best_seed, success_generation = i, current_success_generation
+    
+    print("Best seed: {} with success generation: {}".format(best_seed, success_generation))
+
+if __name__ == "__main__":
+
+    config = {
+        "generations": 100,
+        "population_size": 1000,
+        "mutation_rate": 0.05,
+        "mutation_strength": 0.3
+        }
+    
+    seed(13)
+    start_evolution(**config)

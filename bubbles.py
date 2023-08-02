@@ -29,6 +29,22 @@ class Box():
     def draw(self, canvas):
         canvas.create_rectangle(self.x, self.y, self.x + self.width, self.y + self.height, fill=self.color)
 
+class Checkpoint():
+    def __init__(self, x, y, radius=15, color="orange"):
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.color = color
+
+    def distance_to(self, x, y):
+        return ((self.x - x)**2 + (self.y - y)**2)**0.5
+    
+    def distance_to_checkpoint(self, checkpoint):
+        return ((self.x - checkpoint.x)**2 + (self.y - checkpoint.y)**2)**0.5
+
+    def draw(self, canvas):
+        canvas.create_circle(self.x, self.y, self.radius, color=self.color)
+
 class Bubble():
     
     def __init__(self, move_sequence=None, move_sequence_length=10, base_color="pink"):
@@ -65,6 +81,7 @@ class Bubble():
     def move(self):
         if self.disabled:
             return
+        
         if len(self.move_sequence) > self.move_sequence_index:
             dx, dy = self.move_sequence[self.move_sequence_index]
             self.x += dx * self.step_size
@@ -77,46 +94,38 @@ class Bubble():
     def draw(self, canvas):
         canvas.create_circle(self.x, self.y, self.radius, color=self.color)
 
-class Checkpoint():
-    def __init__(self, x, y, radius=15, color="orange"):
-        self.x = x
-        self.y = y
-        self.radius = radius
-        self.color = color
-
-    def distance_to(self, x, y):
-        return ((self.x - x)**2 + (self.y - y)**2)**0.5
-    
-    def distance_to_checkpoint(self, checkpoint):
-        return ((self.x - checkpoint.x)**2 + (self.y - checkpoint.y)**2)**0.5
-
-    def draw(self, canvas):
-        canvas.create_circle(self.x, self.y, self.radius, color=self.color)
-
 class Map():
-    def __init__(self, start, goal, obstacles, window):
+
+    def __init__(self, width, height, start, goal, obstacles, visualize=True):
+        self.width = width
+        self.height = height
         self.start = start
         self.goal = goal
         self.obstacles = obstacles
 
-        self.window = window
+        self.window = BubbleWindow(width, height) if visualize else None
         
         self.distance_start_to_goal = self.start.distance_to_checkpoint(self.goal)
         
-
-        
     def simulate(self, bubbles):
-        
         for bubble in bubbles:
             bubble.init(self.start.x, self.start.y)
 
+        if self.window is not None:
+            self.simulate_visual(bubbles)
+        else:
+            while not all([bubble.disabled for bubble in bubbles]):
+                self.move_bubbles(bubbles)
+                self.check_collisions(bubbles)
+
+    def simulate_visual(self, bubbles):
         def step():
             if all([bubble.disabled for bubble in bubbles]):
                 self.window.stop()
                 return bubbles
             self.move_bubbles(bubbles)
             self.check_collisions(bubbles)
-            
+        
             self.draw(self.window.canvas, bubbles)
 
         self.window.step_function = step
@@ -139,7 +148,7 @@ class Map():
                 bubble.won = True
     
     def bubble_border_collision(self, bubble):
-        if bubble.x - bubble.radius < 0 or bubble.x + bubble.radius > self.window.width or bubble.y - bubble.radius < 0 or bubble.y + bubble.radius > self.window.height:
+        if bubble.x - bubble.radius < 0 or bubble.x + bubble.radius > self.width or bubble.y - bubble.radius < 0 or bubble.y + bubble.radius > self.height:
             return True
         return False
 
@@ -176,19 +185,32 @@ class BubbleWindow(tk.Tk):
 
     def __init__(self, width, height, step_function=None):
         super().__init__()
-        self.width = width
-        self.height = height
-        
-        self.step_function = step_function # function to be called every frame
-    
-        self.setup()
-    
-    def setup(self):
+
         self.title("Bubbles")
-        self.canvas = self.BubbleCanvas(self, width=self.width, height=self.height)
-        self.canvas.grid(row=0, column=0)
+        self.setup_canvas(width, height)
+        self.setup_label()
 
         self.after(1, self.event_loop)
+
+        self.step_function = step_function # function to be called every frame
+    
+    @property
+    def status_text(self):
+        return self._status_text.get()
+    
+    @status_text.setter
+    def status_text(self, text):
+        self._status_text.set(text)
+
+    def setup_canvas(self, width, height):
+        self.canvas = self.BubbleCanvas(self, width=width, height=height)
+        self.canvas.grid(row=0, column=0)
+
+    def setup_label(self):
+        self._status_text = tk.StringVar(value="Starting...")
+        status_label = tk.Label(self, textvariable=self._status_text)
+        status_label.grid(row=1, column=0)
+
 
     def event_loop(self):
         self.canvas.delete("all")
