@@ -84,14 +84,15 @@ class EvolutionaryAlgorithm():
                     )
 
     def run_generation(self):
+        
         self.map.simulate(self.population)
         self.evaluate_population()
+        
         self.population = sorted(self.population, key=lambda bubble: bubble.fitness, reverse=True)
         
         best = self.population[0].fitness
         avg = sum([bubble.fitness for bubble in self.population]) / len(self.population)
         success = any([bubble.won for bubble in self.population])
-
 
         survivors = self.natural_selection()
         offspring = self.breed(survivors, self.population_size - len(survivors))
@@ -138,9 +139,8 @@ def start_evolution(generations=100, population_size=1000, mutation_rate=0.05, m
     def update_status(status):
         map.window.status_text = status
 
-    evolution.run(status_callback=update_status if visualize else None)
+    return evolution.run(status_callback=update_status if visualize else None)
     
-
 
 def seed_search(start, end, config):
     
@@ -149,7 +149,7 @@ def seed_search(start, end, config):
     for i in range(start, end):
         seed(i)
         print("Seed: {}".format(i))
-        current_success_generation = start_evolution(**config)
+        current_success_generation = start_evolution(**config, visualize=False)
         if current_success_generation < success_generation:
             best_seed, success_generation = i, current_success_generation
     
@@ -164,5 +164,8 @@ if __name__ == "__main__":
         "mutation_strength": 0.3
         }
     
+    
     seed(13)
-    start_evolution(**config, visualize=False)
+    start_evolution(**config, visualize=True)
+
+    # seed_search(0, 100, config)
