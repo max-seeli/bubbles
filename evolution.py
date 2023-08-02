@@ -9,7 +9,7 @@
          function and uses crossover and mutation to evolve the population.
 """
 
-from random import random, randint, gauss, seed
+from random import random, randint, gauss, seed, choices
 from math import inf
 from numpy import polyfit, poly1d
 from bubbles import *
@@ -35,13 +35,13 @@ class EvolutionaryAlgorithm():
 
     def evaluate_population(self):
         
+        # create a function that maps distance to fitness (linear)
         coefficients = polyfit([0, self.map.distance_start_to_goal], [1, 0], deg=1)
         distance_to_fitness = poly1d(coefficients)
         
         for bubble in self.population:
-            bubble.fitness = distance_to_fitness(self.evaluate_distance(bubble))
+            bubble.fitness = max(0, distance_to_fitness(self.evaluate_distance(bubble))**2)
     
-
     def evaluate_distance(self, bubble):
         distance = max(0, self.map.goal.distance_to(bubble.x, bubble.y) - bubble.radius - self.map.goal.radius)
         return distance
@@ -58,9 +58,14 @@ class EvolutionaryAlgorithm():
 
     def breed(self, parents, n):
         offspring = []
+
+        
+        parents_fitness = [bubble.fitness for bubble in parents]
+
         for _ in range(n):
-            mother = parents[randint(0, len(parents) - 1)]
-            father = parents[randint(0, len(parents) - 1)]
+            chosen_parents = choices(parents, weights=parents_fitness, k=2) # acts as softmax
+            mother = chosen_parents[0]
+            father = chosen_parents[1]
 
             child = self.crossover(mother, father)
             self.mutate(child)
@@ -146,13 +151,18 @@ def seeded_evolution(evolution_seed, config):
     seed(evolution_seed)
     return (evolution_seed, start_evolution(**config, visualize=False))
 
-def seed_search(start, end, config):
+def benchmark(n, config):
 
     with Pool() as pool:
-        results = pool.starmap(seeded_evolution, [(i, config) for i in range(start, end)])
+        results = pool.starmap(seeded_evolution, [(i, config) for i in range(n)])
 
     best_seed, success_generation = min(results, key=lambda x: x[1])
+    average_generation = sum([result[1] for result in results]) / len(results)
+    median_generation = sorted(results, key=lambda x: x[1])[int(len(results) / 2)][1]
+
     print("Best seed: {} with success generation: {}".format(best_seed, success_generation))
+    print("Average generation: {}".format(average_generation))
+    print("Median generation: {}".format(median_generation))
 
 if __name__ == "__main__":
 
@@ -164,7 +174,7 @@ if __name__ == "__main__":
         }
     
     
-    seed(88)
-    start_evolution(**config, visualize=True)
+    # seed(5)
+    # start_evolution(**config, visualize=False)
 
-    # seed_search(0, 100, config)
+    benchmark(8, config)
