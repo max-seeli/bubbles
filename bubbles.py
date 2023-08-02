@@ -105,7 +105,7 @@ class Map():
 
         self.window = BubbleWindow(width, height) if visualize else None
         
-        self.distance_start_to_goal = self.start.distance_to_checkpoint(self.goal)
+        self.distance_start_to_goal = max(0, self.start.distance_to_checkpoint(self.goal) - self.start.radius - self.goal.radius)
         
     def simulate(self, bubbles):
         for bubble in bubbles:
