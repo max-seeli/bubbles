@@ -12,11 +12,14 @@ class Map():
         self.goal = goal
         self.obstacles = obstacles
 
-        self.window = BubbleWindow(width, height)
+        self.window = None
         
         self.distance_start_to_goal = max(0, self.start.distance_to_checkpoint(self.goal) - self.start.radius - self.goal.radius)
         
     def simulate(self, bubbles, visualize=True):
+        if visualize and self.window is None:
+            self.window = BubbleWindow(self.width, self.height)
+
         for bubble in bubbles:
             bubble.init(self.start.x, self.start.y)
 
@@ -66,6 +69,12 @@ class Map():
         if self.goal.distance_to(bubble.x, bubble.y) < bubble.radius + self.goal.radius:
             return True
         return False
+    
+    def show_map(self):
+        show_window = BubbleWindow(self.width, self.height)
+        self.draw(show_window.canvas, [])
+        show_window.bind("<Button-1>", lambda _: show_window.close())
+        show_window.start()
 
     def draw(self, canvas, bubbles):
         self.start.draw(canvas)
@@ -120,3 +129,8 @@ def generate_map():
     ]
 
     return Map(width, height, start, goal, obstacles)
+
+
+if __name__ == "__main__":
+    map = generate_map()
+    map.show_map()

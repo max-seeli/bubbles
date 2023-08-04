@@ -42,8 +42,8 @@ class BubbleWindow(tk.Tk):
 
 
     def event_loop(self):
-        self.canvas.delete("all")
         if self.step_function is not None:
+            self.canvas.delete("all")
             self.step_function()
         self.after(1, self.event_loop)
 
@@ -52,3 +52,9 @@ class BubbleWindow(tk.Tk):
 
     def stop(self):
         self.quit()
+
+    def close(self):
+        # cancel all pending after calls to prevent errors
+        for after_id in self.tk.eval('after info').split():
+            self.after_cancel(after_id)
+        self.destroy()
