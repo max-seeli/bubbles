@@ -18,7 +18,7 @@ from bubbles import *
 from map import *
 
 class EvolutionaryAlgorithm():
-    def __init__(self, map, generations,population_size, mutation_rate, mutation_strength):
+    def __init__(self, map, generations, population_size, mutation_rate, mutation_strength):
         self.map = map
         
         self.generations = generations
@@ -61,7 +61,6 @@ class EvolutionaryAlgorithm():
     def breed(self, parents, n):
         offspring = []
 
-        
         parents_fitness = [bubble.fitness for bubble in parents]
 
         for _ in range(n):
@@ -166,7 +165,6 @@ if __name__ == "__main__":
     
     
     seed(43)
-    
     start_evolution(**config, visualize=True)
 
     # benchmark(100, config)
