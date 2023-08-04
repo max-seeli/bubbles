@@ -12,8 +12,10 @@
 from random import random, randint, gauss, seed, choices
 from math import inf
 from numpy import polyfit, poly1d
-from bubbles import *
 from multiprocessing import Pool
+
+from bubbles import *
+from map import *
 
 class EvolutionaryAlgorithm():
     def __init__(self, map, generations,population_size, mutation_rate, mutation_strength):
@@ -89,9 +91,9 @@ class EvolutionaryAlgorithm():
                         bubble.move_sequence[i][1] + gauss(0, self.mutation_strength)
                     )
 
-    def run_generation(self):
+    def run_generation(self, visualize):
         
-        self.map.simulate(self.population)
+        self.map.simulate(self.population, visualize=visualize)
         self.evaluate_population()
         
         self.population = sorted(self.population, key=lambda bubble: bubble.fitness, reverse=True)
@@ -108,10 +110,10 @@ class EvolutionaryAlgorithm():
 
         return best, avg, success
 
-    def run(self, status_callback=None):
+    def run(self, status_callback=None, visualize=True):
         for i in range(1, self.generations + 1): 
 
-            best, avg, success = self.run_generation()
+            best, avg, success = self.run_generation(visualize)
         
             status = "Generation: {} Best: {:.2f}% Avg: {:.2f}%".format(i, best * 100, avg * 100)
         
@@ -128,24 +130,13 @@ class EvolutionaryAlgorithm():
 
 def start_evolution(generations=100, population_size=1000, mutation_rate=0.05, mutation_strength=0.3, visualize = True):
 
-    width, height = 1000, 1000
-
-    start = Checkpoint(50, 500)
-    goal = Checkpoint(950, 500)
-    obstacles = [
-        Box(200, 400, 30, 600),
-        Box(350, 20, 30, 400),
-        Box(450, 700, 30, 200),
-    ]
-
-    map = Map(width, height, start, goal, obstacles, visualize=visualize)
-
+    map = generate_map()
     evolution = EvolutionaryAlgorithm(map, generations, population_size, mutation_rate, mutation_strength)
     
     def update_status(status):
         map.window.status_text = status
 
-    return evolution.run(status_callback=update_status if visualize else None)
+    return evolution.run(status_callback=update_status if visualize else None, visualize=visualize)
     
 def seeded_evolution(evolution_seed, config):
     seed(evolution_seed)
@@ -174,7 +165,8 @@ if __name__ == "__main__":
         }
     
     
-    # seed(5)
-    # start_evolution(**config, visualize=False)
+    seed(43)
+    
+    start_evolution(**config, visualize=True)
 
-    benchmark(8, config)
+    # benchmark(100, config)
