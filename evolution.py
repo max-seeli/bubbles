@@ -33,7 +33,42 @@ class EvolutionaryAlgorithm():
 
     def initialize_population(self):
         self.population = [Bubble(move_sequence_length=self.solution_length) 
-                           for _ in range(self.population_size)]        
+                           for _ in range(self.population_size)]    
+
+    def run(self, status_callback=None, visualize=True):
+        for i in range(1, self.generations + 1): 
+
+            best, avg, success = self.run_generation(visualize)
+        
+            status = "Generation: {} Best: {:.2f}% Avg: {:.2f}%".format(i, best * 100, avg * 100)
+        
+            if status_callback is not None:
+                status_callback(status)
+            print(status)
+        
+            if success:
+                break
+
+        return i
+
+    def run_generation(self, visualize):
+        
+        self.map.simulate(self.population, visualize=visualize)
+        self.evaluate_population()
+        
+        self.population = sorted(self.population, key=lambda bubble: bubble.fitness, reverse=True)
+        
+        best = self.population[0].fitness
+        avg = sum([bubble.fitness for bubble in self.population]) / len(self.population)
+        success = any([bubble.won for bubble in self.population])
+
+        survivors = self.natural_selection()
+        offspring = self.breed(survivors, self.population_size - len(survivors))
+        self.mutate(survivors)
+        
+        self.population = survivors + offspring
+
+        return best, avg, success     
 
     def evaluate_population(self):
         
@@ -89,42 +124,6 @@ class EvolutionaryAlgorithm():
                         bubble.move_sequence[i][0] + gauss(0, self.mutation_strength),
                         bubble.move_sequence[i][1] + gauss(0, self.mutation_strength)
                     )
-
-    def run_generation(self, visualize):
-        
-        self.map.simulate(self.population, visualize=visualize)
-        self.evaluate_population()
-        
-        self.population = sorted(self.population, key=lambda bubble: bubble.fitness, reverse=True)
-        
-        best = self.population[0].fitness
-        avg = sum([bubble.fitness for bubble in self.population]) / len(self.population)
-        success = any([bubble.won for bubble in self.population])
-
-        survivors = self.natural_selection()
-        offspring = self.breed(survivors, self.population_size - len(survivors))
-        self.mutate(survivors)
-        
-        self.population = survivors + offspring
-
-        return best, avg, success
-
-    def run(self, status_callback=None, visualize=True):
-        for i in range(1, self.generations + 1): 
-
-            best, avg, success = self.run_generation(visualize)
-        
-            status = "Generation: {} Best: {:.2f}% Avg: {:.2f}%".format(i, best * 100, avg * 100)
-        
-            if status_callback is not None:
-                status_callback(status)
-            print(status)
-        
-            if success:
-                break
-
-        return i    
-
 
 
 def start_evolution(generations=100, population_size=1000, mutation_rate=0.05, mutation_strength=0.3, visualize = True):
