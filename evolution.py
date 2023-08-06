@@ -77,7 +77,9 @@ class EvolutionaryAlgorithm():
         distance_to_fitness = poly1d(coefficients)
         
         for bubble in self.population:
-            bubble.fitness = max(0, distance_to_fitness(self.evaluate_distance(bubble))**2)
+            distance = self.evaluate_distance(bubble)
+            bubble.fitness = distance_to_fitness(distance)
+            
     
     def evaluate_distance(self, bubble):
         distance = max(0, self.map.goal.distance_to(bubble.x, bubble.y) - bubble.radius - self.map.goal.radius)
@@ -128,7 +130,7 @@ class EvolutionaryAlgorithm():
 
 def start_evolution(generations=100, population_size=1000, mutation_rate=0.05, mutation_strength=0.3, visualize = True):
 
-    map = generate_map()
+    map = MapGenerator().generate(1000, 1000)
     evolution = EvolutionaryAlgorithm(map, generations, population_size, mutation_rate, mutation_strength)
     
     def update_status(status):
@@ -163,7 +165,7 @@ if __name__ == "__main__":
         }
     
     
-    seed(43)
+    # seed(43)
     start_evolution(**config, visualize=True)
 
     # benchmark(100, config)
