@@ -1,16 +1,19 @@
-import time
+from random import random, randint
+import numpy as np
 
 from bubbles import *
 from window import *
 
 class Map():
 
-    def __init__(self, width, height, start, goal, obstacles):
+    def __init__(self, width, height, start, goal, obstacles, optimal_path):
         self.width = width
         self.height = height
         self.start = start
         self.goal = goal
         self.obstacles = obstacles
+
+        self.optimal_path = optimal_path
 
         self.window = None
         
@@ -70,9 +73,11 @@ class Map():
             return True
         return False
     
-    def show_map(self):
+    def show(self):
         show_window = BubbleWindow(self.width, self.height)
         self.draw(show_window.canvas, [])
+        self.draw_path(show_window.canvas, self.optimal_path)
+
         show_window.bind("<Button-1>", lambda _: show_window.close())
         show_window.start()
 
@@ -83,6 +88,11 @@ class Map():
             obstacle.draw(canvas)
         for bubble in bubbles:
             bubble.draw(canvas)
+
+    def draw_path(self, canvas, path):
+        # path is a list of Checkpoints
+        for i in range(len(path) - 1):
+            canvas.create_line(path[i].x, path[i].y, path[i + 1].x, path[i + 1].y, fill="red", width=10, arrow=tk.LAST)
 
 
 class Box():
@@ -117,7 +127,83 @@ class Checkpoint():
     def draw(self, canvas):
         canvas.create_circle(self.x, self.y, self.radius, color=self.color)
 
-def generate_map():
+class MapGenerator():
+        
+    def generate(self, width, height):
+        start, goal = self.generate_start_goal(width, height)
+        optimal_path = self.generate_path(width, height, start, goal)
+        obstacles = self.generate_obstacles_for_optimal_path(width, height, optimal_path)
+        return Map(width, height, start, goal, obstacles, optimal_path)
+
+    def generate_start_goal(self, width, height, orientation=0):
+        # orientation: 0 = horizontal, 1 = vertical
+        orientation_length = width if orientation == 0 else height
+        perpendicular_length = height if orientation == 0 else width
+
+        # choose a random start in the second most outest 5% of the map
+        a = [orientation_length * 0.05, orientation_length * 0.95]
+
+        b = np.interp([random(), random()], [0, 1], [perpendicular_length * 0.05, perpendicular_length * 0.95])
+
+        x = a if orientation == 0 else b
+        y = b if orientation == 0 else a
+
+        start = Checkpoint(x[0], y[0], color="blue")
+        goal = Checkpoint(x[1], y[1], color="green")
+
+        return start, goal
+        
+
+    def generate_path(self, width, height, start, goal):
+        
+        direct_path = np.array([goal.x - start.x, goal.y - start.y], dtype=np.float64)
+        unit_direct_path = direct_path / np.linalg.norm(direct_path)
+        direct_path_length = np.linalg.norm(direct_path)
+
+        perpendicular_path = np.array([direct_path[1], -direct_path[0]], dtype=np.float64)
+        unit_perpendicular_path = perpendicular_path / np.linalg.norm(perpendicular_path)
+
+        checkpoints = [start]
+        
+        num_checkpoints = 10
+        path_length_per_checkpoint = direct_path_length / (num_checkpoints +1)
+
+        for _ in range(num_checkpoints):
+            perpendicular_adjustment = unit_perpendicular_path * (random() - 0.5) * 2 * path_length_per_checkpoint
+            checkpoints.append(Checkpoint(
+                max(width * 0.05, min(width - 0.05 * width, checkpoints[-1].x + unit_direct_path[0] * path_length_per_checkpoint + perpendicular_adjustment[0])),
+                max(height * 0.05, min(height - 0.05 * height, checkpoints[-1].y + unit_direct_path[1] * path_length_per_checkpoint + perpendicular_adjustment[1])),
+            ))
+        
+        # adjust the last checkpoint to be the goal
+        checkpoints.append(goal)
+
+        return checkpoints
+
+    def generate_obstacles_for_optimal_path(self, width, height, optimal_path):
+        obstacles = []
+
+        gap = 40
+        size = 5
+
+        for path_checkpoint in optimal_path[1:-2]:
+            obstacles.append(Box(
+                path_checkpoint.x - size / 2,
+                0,
+                size,
+                path_checkpoint.y - gap / 2
+            ))
+            obstacles.append(Box(
+                path_checkpoint.x - size / 2,
+                path_checkpoint.y + gap / 2,
+                size,
+                height - path_checkpoint.y - gap / 2
+            ))
+        
+        return obstacles
+
+    
+def generate_default_map():
     width, height = 1000, 1000
 
     start = Checkpoint(50, 500)
@@ -128,9 +214,8 @@ def generate_map():
         Box(450, 700, 30, 200),
     ]
 
-    return Map(width, height, start, goal, obstacles)
-
+    return Map(width, height, start, goal, obstacles, [start, goal])
 
 if __name__ == "__main__":
-    map = generate_map()
-    map.show_map()
+    map = MapGenerator().generate(1000, 1000)
+    map.show()
