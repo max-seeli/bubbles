@@ -1,5 +1,7 @@
 from random import random, randint, seed
+from tqdm import tqdm
 import numpy as np
+import time
 
 from bubbles import *
 from window import *
@@ -132,8 +134,9 @@ class Checkpoint():
         canvas.create_circle(self.x, self.y, self.radius, color=self.color)
 
 class MapGenerator():
-        
-    def generate_default_map(self):
+
+    @staticmethod  
+    def generate_default_map():
         
         width, height = 1000, 1000
 
@@ -145,18 +148,24 @@ class MapGenerator():
             Box(450, 700, 30, 200),
         ]
 
-        path = self.generate_path(width, height, start, goal, obstacles)
+        path = MapGenerator.generate_optimal_path(width, height, start, goal, obstacles)
+        
+        return Map(width, height, start, goal, obstacles, path)
+
+    @staticmethod
+    def generate(width, height, approx=False):
+        start, goal = MapGenerator.generate_start_goal(width, height)
+        obstacles = MapGenerator.generate_obstacles(height, start, goal)
+        
+        if approx:
+            path = MapGenerator.generate_path(width, height, start, goal, obstacles)
+        else:
+            path = MapGenerator.generate_optimal_path(width, height, start, goal, obstacles)
 
         return Map(width, height, start, goal, obstacles, path)
 
-
-    def generate(self, width, height):
-        start, goal = self.generate_start_goal(width, height)
-        obstacles = self.generate_obstacles(height, start, goal)
-        path = self.generate_path(width, height, start, goal, obstacles)
-        return Map(width, height, start, goal, obstacles, path)
-
-    def generate_start_goal(self, width, height, orientation=0):
+    @staticmethod
+    def generate_start_goal(width, height, orientation=0):
         # orientation: 0 = horizontal, 1 = vertical
         orientation_length = width if orientation == 0 else height
         perpendicular_length = height if orientation == 0 else width
@@ -174,7 +183,8 @@ class MapGenerator():
 
         return start, goal
     
-    def generate_obstacles(self, height, start, goal, n=None):
+    @staticmethod
+    def generate_obstacles(height, start, goal, n=None):
         
         obstacle_space = [start.x + start.radius, goal.x - goal.radius]
         total_obstacle_space = obstacle_space[1] - obstacle_space[0]
@@ -194,7 +204,7 @@ class MapGenerator():
 
         if obstacle_margin < 50:
             n = (total_obstacle_space - min_obstacle_margin) // (obstacle_width + min_obstacle_margin)
-            return self.generate_obstacles(height, start, goal, n)
+            return MapGenerator.generate_obstacles(height, start, goal, n)
 
         obstacle_margin_range = [obstacle_margin, obstacle_margin]
 
@@ -213,18 +223,83 @@ class MapGenerator():
 
         return obstacles
 
-    def generate_path(self, width, height, start, goal, obstacles):
+    @staticmethod
+    def generate_optimal_path(width, height, start, goal, obstacles):
+        # use A* to find the optimal path
+        def get_checkpoints_from_obstacle(obstacle):
+            offset = 1
+            return [
+                Checkpoint(obstacle.x - offset, obstacle.y - offset),
+                Checkpoint(obstacle.x + obstacle.width + offset, obstacle.y - offset),
+                Checkpoint(obstacle.x + obstacle.width + offset, obstacle.y + obstacle.height + offset),
+                Checkpoint(obstacle.x - offset, obstacle.y + obstacle.height + offset),
+            ]
 
-        path = self.generate_path_rec(width, height, start, goal, obstacles)
-        path = self.backtrack_path(path, obstacles)
+        checkpoints = [start, goal] + [checkpoint for obstacle in obstacles for checkpoint in get_checkpoints_from_obstacle(obstacle)] 
+
+
+        open_set = [start]
+
+        came_from = {}
+
+        g_score = {checkpoint: float("inf") for checkpoint in checkpoints}
+        g_score[start] = 0
+
+        f_score = {checkpoint: float("inf") for checkpoint in checkpoints}
+        f_score[start] = MapGenerator.calculate_path_length(MapGenerator.generate_path(width, height, start, goal, obstacles))
+
+        while len(open_set) > 0:
+            current = min(open_set, key=lambda checkpoint: f_score[checkpoint])
+            if current == goal:
+                return MapGenerator.reconstruct_path(came_from, current)
+
+            open_set.remove(current)
+
+            for neighbor in MapGenerator.get_neighbors(current, checkpoints, obstacles):
+                tentative_g_score = g_score[current] + current.distance_to_checkpoint(neighbor)
+                if tentative_g_score < g_score[neighbor]:
+                    came_from[neighbor] = current
+                    g_score[neighbor] = tentative_g_score
+                    f_score[neighbor] = g_score[neighbor] + neighbor.distance_to_checkpoint(goal)
+                    if neighbor not in open_set:
+                        open_set.append(neighbor)
+
+        return None
+    
+    @staticmethod
+    def reconstruct_path(came_from, current):
+        total_path = [current]
+        while current in came_from.keys():
+            current = came_from[current]
+            total_path.append(current)
+        return total_path[::-1]
+    
+    @staticmethod
+    def get_neighbors(checkpoint, checkpoints, obstacles):
+        neighbors = []
+        for other_checkpoint in checkpoints:
+            if checkpoint == other_checkpoint:
+                continue
+            if len(MapGenerator.find_all_collisions(checkpoint, other_checkpoint, obstacles)) != 0:
+                continue
+
+            neighbors.append(other_checkpoint)
+        return neighbors
+
+    @staticmethod
+    def generate_path(width, height, start, goal, obstacles):
+
+        path = MapGenerator.generate_path_rec(width, height, start, goal, obstacles)
+        path = MapGenerator.backtrack_path(path, obstacles)
         return path    
 
-    def generate_path_rec(self, width, height, start, goal, x_sorted_obstacles):
+    @staticmethod
+    def generate_path_rec(width, height, start, goal, x_sorted_obstacles):
         
         remaining_obstacles = [obstacle for obstacle in x_sorted_obstacles if obstacle.x + obstacle.width > start.x and obstacle.x < goal.x]
 
         for obstacle in remaining_obstacles:
-            collision = self.find_collision(start, goal, obstacle)
+            collision = MapGenerator.find_collision(start, goal, obstacle)
 
             if not collision["collision"]:
                 continue
@@ -233,34 +308,36 @@ class MapGenerator():
                 checkpoint1 = Checkpoint(obstacle.x, obstacle.y - 1)
                 checkpoint2 = Checkpoint(obstacle.x, obstacle.y + obstacle.height + 1)
                 
-                path1 = self.generate_path_rec(width, height, start, checkpoint1, x_sorted_obstacles) + self.generate_path_rec(width, height, checkpoint1, goal, x_sorted_obstacles)
-                path2 = self.generate_path_rec(width, height, start, checkpoint2, x_sorted_obstacles) + self.generate_path_rec(width, height, checkpoint2, goal, x_sorted_obstacles)
+                path1 = MapGenerator.generate_path_rec(width, height, start, checkpoint1, x_sorted_obstacles) + MapGenerator.generate_path_rec(width, height, checkpoint1, goal, x_sorted_obstacles)
+                path2 = MapGenerator.generate_path_rec(width, height, start, checkpoint2, x_sorted_obstacles) + MapGenerator.generate_path_rec(width, height, checkpoint2, goal, x_sorted_obstacles)
                 
-                return path1 if self.calculate_path_length(path1) < self.calculate_path_length(path2) else path2
+                return path1 if MapGenerator.calculate_path_length(path1) < MapGenerator.calculate_path_length(path2) else path2
             elif collision["first_collision"] == "top" or collision["first_collision"] == "bottom":
                 y_offset = -1 if collision["first_collision"] == "top" else obstacle.height + 1
                 checkpoint = Checkpoint(obstacle.x + obstacle.width, obstacle.y + y_offset)
-                path = self.generate_path_rec(width, height, start, checkpoint, x_sorted_obstacles) + self.generate_path_rec(width, height, checkpoint, goal, x_sorted_obstacles)
+                path = MapGenerator.generate_path_rec(width, height, start, checkpoint, x_sorted_obstacles) + MapGenerator.generate_path_rec(width, height, checkpoint, goal, x_sorted_obstacles)
                 return path
 
         return [start, goal]        
     
-    def backtrack_path(self, path, obstacles):
+    @staticmethod
+    def backtrack_path(path, obstacles):
         # remove checkpoints that are not necessary
         # e.g. if there is a straight line from start to goal, remove all checkpoints in between
         i = 0
         while i < len(path) - 2:
-            if len(self.find_all_collisions(path[i], path[i + 2], obstacles)) == 0:
+            if len(MapGenerator.find_all_collisions(path[i], path[i + 2], obstacles)) == 0:
                 path.pop(i + 1)
                 i = 0
             else:
                 i += 1 
         return path
     
-    def find_all_collisions(self, start, goal, obstacles):
+    @staticmethod
+    def find_all_collisions(start, goal, obstacles):
         collisions = []
         for obstacle in obstacles:
-            collision = self.find_collision(start, goal, obstacle)
+            collision = MapGenerator.find_collision(start, goal, obstacle)
             if collision["collision"]:
                 collisions.append(collision)
         return collisions
@@ -284,7 +361,8 @@ class MapGenerator():
         "first_collision": "left"/"right"/"top"/"bottom"
     }
     """
-    def find_collision(self, start, goal, obstacle):
+    @staticmethod
+    def find_collision(start, goal, obstacle):
 
         # represent the line from start to goal as a np pair of points
         line = np.array([
@@ -330,7 +408,7 @@ class MapGenerator():
 
         # check if the line intersects with any of the obstacle lines
         for side, obstacle in obstacle_lines.items():
-            intersection = self.line_intersection(line, obstacle)
+            intersection = MapGenerator.line_intersection(line, obstacle)
             if intersection is not None:
                 collsion_info[side] = True
                 collsion_info["collision"] = True
@@ -358,7 +436,8 @@ class MapGenerator():
         return collsion_info
 
 
-    def line_intersection(self, line1, line2):
+    @staticmethod
+    def line_intersection(line1, line2):
         # Calculate the intersection point of two line segments.
         p1, p2 = line1
         p3, p4 = line2
@@ -379,16 +458,53 @@ class MapGenerator():
             return p1 + s * v1        
         return None
         
-    def calculate_path_length(self, path):
+    @staticmethod
+    def calculate_path_length(path):
         length = 0
         for i in range(len(path) - 1):
             length += path[i].distance_to_checkpoint(path[i + 1])
         return length
 
+
+def benchmark_path_finding(n = 100):
+
+    absolute_distance_optimal = np.array([]) 
+    absolute_distance_approx = np.array([])
+
+    absolute_time_optimal = np.array([])
+    absolute_time_approx = np.array([])
+
+    seed(0)
+
+    percent_done = 0
+    for i in tqdm(range(n)):
+        start = time.perf_counter()
+        map = MapGenerator.generate(1000, 1000, approx=False)
+        end = time.perf_counter()
+
+        absolute_time_optimal = np.append(absolute_time_optimal, end - start)
+        absolute_distance_optimal = np.append(absolute_distance_optimal, MapGenerator.calculate_path_length(map.optimal_path))
+
+        # benchmark approx path generation
+        start = time.perf_counter()
+        map = MapGenerator.generate(1000, 1000, approx=True)
+        end = time.perf_counter()
+
+        absolute_time_approx = np.append(absolute_time_approx, end - start)
+        absolute_distance_approx = np.append(absolute_distance_approx, MapGenerator.calculate_path_length(map.optimal_path))
+
+    # print average time and distance
+    print("Optimal path generation took on average", np.average(absolute_time_optimal), "seconds")
+    print("Approx path generation took on average", np.average(absolute_time_approx), "seconds")
+
+    print("Optimal path is on average", np.average(absolute_distance_optimal), "units long")
+    print("Approx path is on average", np.average(absolute_distance_approx), "units long")
+
+    # calculate how much faster the approx path generation is on average compared to the optimal path generation
+    print("Approx path generation is on average", np.average(absolute_time_optimal) / np.average(absolute_time_approx), "times faster than the optimal path generation")
+
+    # calculate how much longer the approx path is on average compared to the optimal path
+    print("Approx path is on average", np.average(absolute_distance_approx) / np.average(absolute_distance_optimal), "times longer than the optimal path")
+    
 if __name__ == "__main__":
-    while True:
-        current_seed = randint(0, 1000000000)
-        print("Seed:", current_seed)
-        seed(current_seed)
-        map = MapGenerator().generate(1000, 1000)
-        map.show()
+    benchmark_path_finding(1000)
