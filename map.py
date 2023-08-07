@@ -2,6 +2,7 @@ from random import random, randint, seed
 from tqdm import tqdm
 import numpy as np
 import time
+import json
 
 from bubbles import *
 from window import *
@@ -465,7 +466,64 @@ class MapGenerator():
             length += path[i].distance_to_checkpoint(path[i + 1])
         return length
 
+class MapFileHandler():
+    
+    @staticmethod
+    def save(map, filename):
+        with open(filename, "w") as file:
+            json.dump(MapFileHandler.serialize(map), file)
 
+    @staticmethod
+    def load(filename):
+        with open(filename, "r") as file:
+            return MapFileHandler.deserialize(json.load(file))
+
+    @staticmethod    
+    def serialize(map):
+        return {
+            "width": map.width,
+            "height": map.height,
+            "start": {
+                "x": map.start.x,
+                "y": map.start.y,
+            },
+            "goal": {
+                "x": map.goal.x,
+                "y": map.goal.y,
+            },
+            "obstacles": [
+                {
+                    "x": obstacle.x,
+                    "y": obstacle.y,
+                    "width": obstacle.width,
+                    "height": obstacle.height,
+                } for obstacle in map.obstacles
+            ],
+            "optimal_path": [
+                {
+                    "x": checkpoint.x,
+                    "y": checkpoint.y,
+                } for checkpoint in map.optimal_path
+            ]
+        }
+    
+    @staticmethod
+    def deserialize(data):
+        return Map(
+            data["width"],
+            data["height"],
+            Checkpoint(data["start"]["x"], data["start"]["y"]),
+            Checkpoint(data["goal"]["x"], data["goal"]["y"]),
+            [
+                Box(obstacle["x"], obstacle["y"], obstacle["width"], obstacle["height"])
+                for obstacle in data["obstacles"]
+            ],
+            [
+                Checkpoint(checkpoint["x"], checkpoint["y"])
+                for checkpoint in data["optimal_path"]
+            ]
+        )
+        
 def benchmark_path_finding(n = 100):
 
     absolute_distance_optimal = np.array([]) 
@@ -476,8 +534,7 @@ def benchmark_path_finding(n = 100):
 
     seed(0)
 
-    percent_done = 0
-    for i in tqdm(range(n)):
+    for _ in tqdm(range(n)):
         start = time.perf_counter()
         map = MapGenerator.generate(1000, 1000, approx=False)
         end = time.perf_counter()
@@ -507,4 +564,9 @@ def benchmark_path_finding(n = 100):
     print("Approx path is on average", np.average(absolute_distance_approx) / np.average(absolute_distance_optimal), "times longer than the optimal path")
     
 if __name__ == "__main__":
-    benchmark_path_finding(1000)
+    map = MapGenerator.generate_default_map()
+    map.show()
+
+    MapFileHandler.save(map, "map.json")
+    loaded_map = MapFileHandler.load("map.json")
+    loaded_map.show()
