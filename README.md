@@ -27,11 +27,11 @@ The approximation algorithm is a two step algorithm. First, a path is generated,
 
 1. The path is generated incrementally. Starting with the direct linear path between the start and the goal. Looking at the first collision with an obstacle, the path is split in two parts. The first part is the path from the start to the optimal corner of the obstacle and the second part is the path from the optimal corner to the goal. The second part is obviously prone to continuous collisions with obstacles and therefore the same process is applied to this part. This process is repeated until the path is collision free.
 
-![Image after step 1](./images/path_generation_step1.png)
+<img src="./images/path_generation_step1.png" alt="Image after step 1" width="800">
 
 2. Because of the incremental generation with disregard to future collisions, the path is not optimal. To optimize the path, every checkpoint of the path is singularly removed and the path is recalculated. If the path is collision free, even without the checkpoint, it is removed, as the path is neccessarily shorter without the checkpoint. This process is repeated until no checkpoint can be removed without collisions.
 
-![Image after step 2](./images/path_generation_step2.png)
+<img src="./images/path_generation_step2.png" alt="Image after step 2" width="800">
 
 #### Comparison
 Benchmarking the two algorithms on a total of 1000 randomly generated maps of size 1000 by 1000, the following results were achieved:
@@ -47,15 +47,15 @@ The following image shows some maps with the path between the two algorithms dif
 
 <table>
     <tr>
-        <th style="width: 50%">Approximation</th>
-        <th style="width: 50%">A*</th>
+        <th>Approximation</th>
+        <th>A*</th>
     </tr>
     <tr>
-        <td><img src="./images/path_approx1.png" alt="Approximated path 1"></td>
-        <td><img src="./images/path_a_star1.png" alt="Optimal path with A* 1"></td>
+        <td><img src="./images/path_approx1.png" alt="Approximated path 1" width="400"></td>
+        <td><img src="./images/path_a_star1.png" alt="Optimal path with A* 1" , width="400"></td>
     </tr>
     <tr>
-        <td><img src="./images/path_approx2.png" alt="Approximated path 2"></td>
-        <td><img src="./images/path_a_star2.png" alt="Optimal path with A* 2"></td>
+        <td><img src="./images/path_approx2.png" alt="Approximated path 2" width="400"></td>
+        <td><img src="./images/path_a_star2.png" alt="Optimal path with A* 2" , width="400"></td>
     </tr>
 </table>
