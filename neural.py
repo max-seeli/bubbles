@@ -82,7 +82,23 @@ if __name__ == "__main__":
     loss_fn = nn.MSELoss()
     optimizer = optim.Adam(bubble_network.parameters(), lr=0.001)
 
-    input_tensors, output_tensors = TestDataGenerator.generate(1000, 10)
+    # load training data from data/ folder if available
+    try:
+        input_tensors = torch.load("data/input_tensors.pt")
+        output_tensors = torch.load("data/output_tensors.pt")
+    except:
+        input_tensors, output_tensors = TestDataGenerator.generate(1000, 10)
+
+        # store training data to data/ folder
+        torch.save(input_tensors, "data/input_tensors.pt")
+        torch.save(output_tensors, "data/output_tensors.pt")
+
+    # check if cuda is available
+    if torch.cuda.is_available():
+        bubble_network.cuda()
+        loss_fn.cuda()
+        input_tensors = [input_tensor.cuda() for input_tensor in input_tensors]
+        output_tensors = [output_tensor.cuda() for output_tensor in output_tensors]
 
     for epoch in range(num_epochs):
         for i in range(0, len(input_tensors), batch_size):
