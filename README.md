@@ -1,7 +1,7 @@
 # Bubbles
 ![Image of dog playing with bubbles](./images/bubbles_dog.jpg)
 
-Bubbles is a fun project to experiment with learning algorithms. The task is to navigate through a map with obstacles from a start to a goal.
+Bubbles is a fun project to experiment with genetic algorithms. The task is to navigate through a map with obstacles from a start to a goal.
 
 ## Map Generation
 The map generation works with the following process.

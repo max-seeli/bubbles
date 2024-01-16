@@ -1,12 +1,9 @@
 """
-@file evolution.py
-@author Maximilian Seeliger (maximilian.seeliger@gmail.com)
-@brief An evolutionary algorithm (genetic algorithm) to find a solution to the path
-       finding problem defined in the map.
-@date 2023-08-1
+An evolutionary algorithm (genetic algorithm) to find a solution to the path
+finding problem defined in the map.
  
-@details The evolutionary algorithm uses the linear distance to the goal as a fitness
-         function and uses crossover and mutation to evolve the population.
+The evolutionary algorithm uses the linear distance to the goal as a fitness
+function and uses crossover and mutation to evolve the population.
 """
 
 from random import random, randint, gauss, seed, choices

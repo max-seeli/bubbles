@@ -1,16 +1,3 @@
-"""
-@file bubbles.py
-@author Maximilian Seeliger (maximilian.seeliger@gmail.com)
-@brief An environment for bubbles to move around in and learn to avoid obstacles.
-@date 2023-07-31
- 
-@details This project intends to create a sandbox for experimenting with different 
-         kinds of learning algorithms in the context of solving the simple problem
-         of bubbles moving around in a 2D environment and learning to avoid obstacles
-         and reach a goal.
-"""
-
-import tkinter as tk
 from random import uniform
 
 class Bubble():
