@@ -205,7 +205,7 @@ class MapGenerator():
 
         if obstacle_margin < 50:
             n = (total_obstacle_space - min_obstacle_margin) // (obstacle_width + min_obstacle_margin)
-            return MapGenerator.generate_obstacles(height, start, goal, n)
+            return MapGenerator.generate_obstacles(height, start, goal, int(n))
 
         obstacle_margin_range = [obstacle_margin, obstacle_margin]
 
@@ -583,11 +583,11 @@ def benchmark_path_finding(n = 100):
     print("Approx path is on average", np.average(absolute_distance_approx) / np.average(absolute_distance_optimal), "times longer than the optimal path")
     
 if __name__ == "__main__":
-    map = MapGenerator.generate_default_map()
+    map = MapGenerator.generate(500, 600)
     map.show()
 
     path = MapPathFinder.generate_optimal_path(map)
     map.show(path, "Optimal path")
 
-    path = MapPathFinder.generate_optimal_path_from(map, 50, 100)
-    map.show(path, "Optimal path from (50, 100)")
+    path = MapPathFinder.generate_approx_path(map)
+    map.show(path, "Approx path")
